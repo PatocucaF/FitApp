@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
-// Configuración de Supabase con variables de entorno
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -12,14 +11,16 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
+  const [assignedAthlete, setAssignedAthlete] = useState('Fernando'); // Atleta por defecto
   const [loading, setLoading] = useState(false);
 
-  // Estado para los ejercicios dinámicos dentro del modal
+  // Lista de atletas disponibles
+  const athletesList = ['Fernando', 'Lucas Silva'];
+
   const [exercises, setExercises] = useState([
     { name: '', setsReps: '', weight: '', rest: '' }
   ]);
 
-  // Cargar rutinas desde Supabase al montar
   useEffect(() => {
     fetchRoutines();
   }, []);
@@ -38,19 +39,17 @@ export default function App() {
     }
   };
 
-  // Agregar una casilla más de ejercicio
   const addExerciseField = () => {
     setExercises([...exercises, { name: '', setsReps: '', weight: '', rest: '' }]);
   };
 
-  // Actualizar un campo específico de un ejercicio por índice
   const updateExercise = (index, field, value) => {
     const updated = [...exercises];
     updated[index][field] = value;
     setExercises(updated);
   };
 
-  // Guardar la rutina en Supabase
+  // Función para guardar rutina con el deportista asignado y botón de eliminar
   const handleSaveRoutine = async (e) => {
     e.preventDefault();
     if (!title.trim()) return alert('Por favor ingresa un título para la rutina');
@@ -61,15 +60,16 @@ export default function App() {
         {
           title,
           notes,
-          exercises, // Guarda la lista completa de ejercicios con peso, reps y descanso
+          assigned_athlete: assignedAthlete, // Guarda a qué deportista pertenece
+          exercises,
         }
       ]);
 
       if (error) throw error;
 
-      // Limpiar formulario y recargar
       setTitle('');
       setNotes('');
+      setAssignedAthlete('Fernando');
       setExercises([{ name: '', setsReps: '', weight: '', rest: '' }]);
       setIsModalOpen(false);
       fetchRoutines();
@@ -77,6 +77,18 @@ export default function App() {
       alert('Error al guardar: ' + err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Función para borrar rutina desde el panel
+  const handleDeleteRoutine = async (id) => {
+    if (!confirm('¿Estás seguro de borrar esta rutina?')) return;
+    try {
+      const { error } = await supabase.from('routines').delete().eq('id', id);
+      if (error) throw error;
+      fetchRoutines();
+    } catch (err) {
+      alert('Error al eliminar: ' + err.message);
     }
   };
 
@@ -123,7 +135,7 @@ export default function App() {
             <div className="flex justify-between items-center bg-slate-900 p-6 rounded-2xl border border-slate-800">
               <div>
                 <h2 className="text-xl font-bold">Panel del Entrenador</h2>
-                <p className="text-xs text-slate-400">Gestiona las rutinas de tu atleta en tiempo real</p>
+                <p className="text-xs text-slate-400">Asigna rutinas y administra los atletas</p>
               </div>
               <button
                 onClick={() => setIsModalOpen(true)}
@@ -133,10 +145,10 @@ export default function App() {
               </button>
             </div>
 
-            {/* Listado de Rutinas Creadas */}
+            {/* Listado de Rutinas con opción de Borrar */}
             <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
               <h3 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider">
-                Rutinas en la Base de Datos ({routines.length})
+                Rutinas Creadas ({routines.length})
               </h3>
 
               {routines.length === 0 ? (
@@ -144,11 +156,25 @@ export default function App() {
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
                   {routines.map((r) => (
-                    <div key={r.id} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
-                      <h4 className="font-bold text-slate-200">{r.title}</h4>
+                    <div key={r.id} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3 relative">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-medium border border-cyan-500/20">
+                            Atleta: {r.assigned_athlete || 'Fernando'}
+                          </span>
+                          <h4 className="font-bold text-slate-200 mt-1">{r.title}</h4>
+                        </div>
+                        <button
+                          onClick={() => handleDeleteRoutine(r.id)}
+                          className="text-slate-500 hover:text-red-400 text-xs px-2 py-1 transition-colors"
+                          title="Eliminar rutina"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </div>
+
                       {r.notes && <p className="text-xs text-slate-400 italic">"{r.notes}"</p>}
 
-                      {/* Lista de ejercicios dentro de la tarjeta */}
                       {r.exercises && r.exercises.length > 0 && (
                         <div className="space-y-2 pt-2 border-t border-slate-800/80">
                           {r.exercises.map((ex, i) => (
@@ -168,54 +194,71 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* VISTA DEL DEPORTISTA (CELULAR) */
+          /* VISTA DEL DEPORTISTA (FILTRA SOLO SUS RUTINAS) */
           <div className="max-w-md mx-auto space-y-6">
             <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center">
-              <h2 className="text-lg font-bold text-cyan-400">Mi Plan de Hoy</h2>
-              <p className="text-xs text-slate-400">Sincronizado con Supabase</p>
+              <h2 className="text-lg font-bold text-cyan-400">Mi Plan de Hoy (Fernando)</h2>
+              <p className="text-xs text-slate-400">Rutinas asignadas exclusivamente para ti</p>
             </div>
 
-            {routines.map((r) => (
-              <div key={r.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
-                <div>
-                  <h3 className="text-lg font-bold text-white">{r.title}</h3>
-                  {r.notes && <p className="text-xs text-slate-400 mt-1">{r.notes}</p>}
-                </div>
+            {routines
+              .filter((r) => !r.assigned_athlete || r.assigned_athlete === 'Fernando')
+              .map((r) => (
+                <div key={r.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+                  <div>
+                    <h3 className="text-lg font-bold text-white">{r.title}</h3>
+                    {r.notes && <p className="text-xs text-slate-400 mt-1">{r.notes}</p>}
+                  </div>
 
-                <div className="space-y-3">
-                  {r.exercises && r.exercises.map((ex, i) => (
-                    <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
-                      <div className="font-bold text-sm text-cyan-300 mb-2">{ex.name}</div>
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="bg-slate-900 p-1.5 rounded-lg">
-                          <span className="block text-[10px] text-slate-500">SERIES/REPS</span>
-                          <span className="font-semibold text-slate-200">{ex.setsReps || '-'}</span>
-                        </div>
-                        <div className="bg-slate-900 p-1.5 rounded-lg">
-                          <span className="block text-[10px] text-slate-500">PESO</span>
-                          <span className="font-semibold text-slate-200">{ex.weight || '-'}</span>
-                        </div>
-                        <div className="bg-slate-900 p-1.5 rounded-lg">
-                          <span className="block text-[10px] text-slate-500">DESCANSO</span>
-                          <span className="font-semibold text-slate-200">{ex.rest || '-'}</span>
+                  <div className="space-y-3">
+                    {r.exercises && r.exercises.map((ex, i) => (
+                      <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
+                        <div className="font-bold text-sm text-cyan-300 mb-2">{ex.name}</div>
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                          <div className="bg-slate-900 p-1.5 rounded-lg">
+                            <span className="block text-[10px] text-slate-500">SERIES/REPS</span>
+                            <span className="font-semibold text-slate-200">{ex.setsReps || '-'}</span>
+                          </div>
+                          <div className="bg-slate-900 p-1.5 rounded-lg">
+                            <span className="block text-[10px] text-slate-500">PESO</span>
+                            <span className="font-semibold text-slate-200">{ex.weight || '-'}</span>
+                          </div>
+                          <div className="bg-slate-900 p-1.5 rounded-lg">
+                            <span className="block text-[10px] text-slate-500">DESCANSO</span>
+                            <span className="font-semibold text-slate-200">{ex.rest || '-'}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
       </main>
 
-      {/* MODAL / VENTANA FLOTANTE PARA CREAR RUTINA */}
+      {/* MODAL PARA CREAR RUTINA CON ASIGNACIÓN */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
-            <h3 className="text-lg font-bold text-white">Crear Nueva Rutina</h3>
+            <h3 className="text-lg font-bold text-white">Crear y Asignar Rutina</h3>
 
             <form onSubmit={handleSaveRoutine} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">SELECCIONAR ATLETA</label>
+                <select
+                  value={assignedAthlete}
+                  onChange={(e) => setAssignedAthlete(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                >
+                  {athletesList.map((athlete, idx) => (
+                    <option key={idx} value={athlete}>
+                      {athlete}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-400 block mb-1">TÍTULO DE LA RUTINA</label>
                 <input
@@ -238,13 +281,12 @@ export default function App() {
                 />
               </div>
 
-              {/* LISTA DINÁMICA DE EJERCICIOS */}
               <div className="space-y-3">
                 <label className="text-xs font-semibold text-cyan-400 block uppercase tracking-wider">
                   Ejercicios de la Rutina
                 </label>
 
-                <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-48 overflow-y-auto pr-1">
                   {exercises.map((ex, index) => (
                     <div key={index} className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
                       <input
@@ -300,7 +342,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Botones de Acción */}
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
@@ -314,7 +355,7 @@ export default function App() {
                   disabled={loading}
                   className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all"
                 >
-                  {loading ? 'Guardando...' : 'Guardar en Supabase'}
+                  {loading ? 'Guardando...' : 'Guardar y Asignar'}
                 </button>
               </div>
             </form>
