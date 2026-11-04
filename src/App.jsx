@@ -1,225 +1,231 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabaseClient';
+import { createClient } from '@supabase/supabase-js';
+
+// Configuración de Supabase con variables de entorno
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function App() {
-  const [view, setView] = useState('trainer'); // 'trainer' o 'athlete'
-  const [athletes, setAthletes] = useState([]);
+  const [activeTab, setActiveTab] = useState('trainer'); // 'trainer' | 'athlete'
   const [routines, setRoutines] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Estados para el formulario de nueva rutina
-  const [showModal, setShowModal] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [coachNotes, setCoachNotes] = useState('');
-  const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
 
+  // Estado para los ejercicios dinámicos dentro del modal
+  const [exercises, setExercises] = useState([
+    { name: '', setsReps: '', weight: '', rest: '' }
+  ]);
+
+  // Cargar rutinas desde Supabase al montar
   useEffect(() => {
-    fetchData();
+    fetchRoutines();
   }, []);
 
-  async function fetchData() {
+  const fetchRoutines = async () => {
     try {
-      setLoading(true);
-      const { data: athletesData, error: athletesError } = await supabase
-        .from('athletes')
-        .select('*');
-      if (athletesError) throw athletesError;
-
-      const { data: routinesData, error: routinesError } = await supabase
+      const { data, error } = await supabase
         .from('routines')
         .select('*')
         .order('created_at', { ascending: false });
-      if (routinesError) throw routinesError;
 
-      setAthletes(athletesData || []);
-      setRoutines(routinesData || []);
-    } catch (error) {
-      console.error('Error cargando datos:', error.message);
-    } finally {
-      setLoading(false);
+      if (error) throw error;
+      if (data) setRoutines(data);
+    } catch (err) {
+      console.error('Error al cargar rutinas:', err.message);
     }
-  }
+  };
 
-  // Guardar nueva rutina en Supabase
-  async function handleCreateRoutine(e) {
+  // Agregar una casilla más de ejercicio
+  const addExerciseField = () => {
+    setExercises([...exercises, { name: '', setsReps: '', weight: '', rest: '' }]);
+  };
+
+  // Actualizar un campo específico de un ejercicio por índice
+  const updateExercise = (index, field, value) => {
+    const updated = [...exercises];
+    updated[index][field] = value;
+    setExercises(updated);
+  };
+
+  // Guardar la rutina en Supabase
+  const handleSaveRoutine = async (e) => {
     e.preventDefault();
-    if (!title.trim()) return;
+    if (!title.trim()) return alert('Por favor ingresa un título para la rutina');
 
+    setLoading(true);
     try {
-      setSaving(true);
       const { error } = await supabase.from('routines').insert([
         {
-          title: title,
-          coach_notes: coachNotes,
-          exercises: [
-            { name: 'Press de Banca Plano', sets: 4, reps: '8-10', target: '70 kg' },
-            { name: 'Press Inclinado con Mancuernas', sets: 3, reps: '10-12', target: '24 kg/lado' }
-          ]
+          title,
+          notes,
+          exercises, // Guarda la lista completa de ejercicios con peso, reps y descanso
         }
       ]);
 
       if (error) throw error;
 
-      // Limpiar formulario y recargar datos
+      // Limpiar formulario y recargar
       setTitle('');
-      setCoachNotes('');
-      setShowModal(false);
-      await fetchData();
-    } catch (error) {
-      alert('Error creando rutina: ' + error.message);
+      setNotes('');
+      setExercises([{ name: '', setsReps: '', weight: '', rest: '' }]);
+      setIsModalOpen(false);
+      fetchRoutines();
+    } catch (err) {
+      alert('Error al guardar: ' + err.message);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans p-4 sm:p-6">
-      {/* Selector de Vistas */}
-      <div className="flex justify-end gap-2 mb-6">
-        <button
-          onClick={() => setView('trainer')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            view === 'trainer' ? 'bg-cyan-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-          }`}
-        >
-          Vista Entrenador (PC)
-        </button>
-        <button
-          onClick={() => setView('athlete')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-            view === 'athlete' ? 'bg-cyan-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-          }`}
-        >
-          Vista Deportista (Celular)
-        </button>
-      </div>
+    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 sm:p-8">
+      {/* Navbar Superior */}
+      <header className="max-w-4xl mx-auto flex justify-between items-center pb-6 border-b border-slate-800 mb-8">
+        <div>
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
+            FitApp
+          </h1>
+          <p className="text-xs text-slate-400">Entrenamiento en tiempo real</p>
+        </div>
 
-      {loading ? (
-        <div className="text-center py-20 text-cyan-400">Cargando FitApp desde Supabase...</div>
-      ) : view === 'trainer' ? (
-        /* VISTA ENTRENADOR */
-        <div className="max-w-5xl mx-auto space-y-6">
-          <header className="flex justify-between items-center border-b border-slate-800 pb-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white">Panel del Entrenador</h1>
-              <p className="text-sm text-slate-400">Gestiona tus atletas y asigna rutinas diarias en tiempo real</p>
+        <div className="flex gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
+          <button
+            onClick={() => setActiveTab('trainer')}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === 'trainer'
+                ? 'bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Vista Entrenador (PC)
+          </button>
+          <button
+            onClick={() => setActiveTab('athlete')}
+            className={`px-4 py-1.5 text-xs font-semibold rounded-lg transition-all ${
+              activeTab === 'athlete'
+                ? 'bg-cyan-500 text-slate-950 shadow-lg shadow-cyan-500/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            Vista Deportista (Celular)
+          </button>
+        </div>
+      </header>
+
+      {/* Contenido Principal */}
+      <main className="max-w-4xl mx-auto">
+        {activeTab === 'trainer' ? (
+          /* PANEL DEL ENTRENADOR */
+          <div className="space-y-6">
+            <div className="flex justify-between items-center bg-slate-900 p-6 rounded-2xl border border-slate-800">
+              <div>
+                <h2 className="text-xl font-bold">Panel del Entrenador</h2>
+                <p className="text-xs text-slate-400">Gestiona las rutinas de tu atleta en tiempo real</p>
+              </div>
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm transition-all shadow-lg shadow-emerald-500/20"
+              >
+                + Crear Nueva Rutina
+              </button>
             </div>
-            <button 
-              onClick={() => setShowModal(true)}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg cursor-pointer"
-            >
-              + Crear Nueva Rutina
-            </button>
-          </header>
 
-          {/* Atletas */}
-          <section className="bg-slate-800/50 border border-slate-800 rounded-xl p-5 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-cyan-400">👤 Mis Atletas ({athletes.length})</h2>
-            <div className="grid gap-3">
-              {athletes.map((athlete) => (
-                <div key={athlete.id} className="bg-slate-800 p-4 rounded-lg flex justify-between items-center border border-slate-700/50">
-                  <div>
-                    <h3 className="font-bold text-white text-base">{athlete.name}</h3>
-                    <p className="text-xs text-slate-400">Última actividad: {athlete.last_active || 'Sin registros'}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-full font-medium">
-                      🔥 {athlete.streak} días
-                    </span>
-                    <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                      athlete.status === 'Entrenó' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-700 text-slate-300'
-                    }`}>
-                      {athlete.status}
-                    </span>
-                  </div>
+            {/* Listado de Rutinas Creadas */}
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
+              <h3 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider">
+                Rutinas en la Base de Datos ({routines.length})
+              </h3>
+
+              {routines.length === 0 ? (
+                <p className="text-sm text-slate-500 py-4">No hay rutinas creadas aún.</p>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {routines.map((r) => (
+                    <div key={r.id} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-3">
+                      <h4 className="font-bold text-slate-200">{r.title}</h4>
+                      {r.notes && <p className="text-xs text-slate-400 italic">"{r.notes}"</p>}
+
+                      {/* Lista de ejercicios dentro de la tarjeta */}
+                      {r.exercises && r.exercises.length > 0 && (
+                        <div className="space-y-2 pt-2 border-t border-slate-800/80">
+                          {r.exercises.map((ex, i) => (
+                            <div key={i} className="text-xs flex justify-between bg-slate-900 p-2 rounded-lg">
+                              <span className="font-medium text-slate-300">{ex.name || 'Ejercicio'}</span>
+                              <span className="text-cyan-400">
+                                {ex.setsReps} | {ex.weight} | {ex.rest}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          </section>
+          </div>
+        ) : (
+          /* VISTA DEL DEPORTISTA (CELULAR) */
+          <div className="max-w-md mx-auto space-y-6">
+            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center">
+              <h2 className="text-lg font-bold text-cyan-400">Mi Plan de Hoy</h2>
+              <p className="text-xs text-slate-400">Sincronizado con Supabase</p>
+            </div>
 
-          {/* Rutinas Guardadas */}
-          <section className="bg-slate-800/50 border border-slate-800 rounded-xl p-5 shadow-xl">
-            <h2 className="text-lg font-semibold mb-4 text-cyan-400">🏋️ Rutinas en la Base de Datos ({routines.length})</h2>
-            {routines.length === 0 ? (
-              <p className="text-slate-400 text-sm italic">No hay rutinas guardadas todavía. Haz clic en "Crear Nueva Rutina".</p>
-            ) : (
-              <div className="grid gap-3">
-                {routines.map((routine) => (
-                  <div key={routine.id} className="bg-slate-800 p-4 rounded-lg border border-slate-700/50">
-                    <h3 className="font-bold text-white text-lg">{routine.title}</h3>
-                    <p className="text-sm text-slate-400 mt-1">{routine.coach_notes || 'Sin notas adicionales'}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+            {routines.map((r) => (
+              <div key={r.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+                <div>
+                  <h3 className="text-lg font-bold text-white">{r.title}</h3>
+                  {r.notes && <p className="text-xs text-slate-400 mt-1">{r.notes}</p>}
+                </div>
 
-          {/* MODAL CREAR RUTINA */}
-          {showModal && (
-            <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-              <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md w-full shadow-2xl space-y-4">
-                <h3 className="text-xl font-bold text-white">Crear Nueva Rutina</h3>
-                <form onSubmit={handleCreateRoutine} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Título de la Rutina</label>
-                    <input
-                      type="text"
-                      placeholder="Ej: Día 1: Pecho y Tríceps"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Notas del Entrenador</label>
-                    <textarea
-                      placeholder="Ej: Enfócate en la fase excéntrica lenta."
-                      value={coachNotes}
-                      onChange={(e) => setCoachNotes(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-white focus:outline-none focus:border-cyan-500 h-24"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowModal(false)}
-                      className="px-4 py-2 rounded-lg text-sm font-medium bg-slate-700 hover:bg-slate-600 text-slate-200"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={saving}
-                      className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-                    >
-                      {saving ? 'Guardando...' : 'Guardar en Supabase'}
-                    </button>
-                  </div>
-                </form>
+                <div className="space-y-3">
+                  {r.exercises && r.exercises.map((ex, i) => (
+                    <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
+                      <div className="font-bold text-sm text-cyan-300 mb-2">{ex.name}</div>
+                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                        <div className="bg-slate-900 p-1.5 rounded-lg">
+                          <span className="block text-[10px] text-slate-500">SERIES/REPS</span>
+                          <span className="font-semibold text-slate-200">{ex.setsReps || '-'}</span>
+                        </div>
+                        <div className="bg-slate-900 p-1.5 rounded-lg">
+                          <span className="block text-[10px] text-slate-500">PESO</span>
+                          <span className="font-semibold text-slate-200">{ex.weight || '-'}</span>
+                        </div>
+                        <div className="bg-slate-900 p-1.5 rounded-lg">
+                          <span className="block text-[10px] text-slate-500">DESCANSO</span>
+                          <span className="font-semibold text-slate-200">{ex.rest || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      ) : (
-        /* VISTA DEPORTISTA */
-        <div className="max-w-md mx-auto bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-2xl space-y-4">
-          <header className="text-center pb-4 border-b border-slate-700">
-            <span className="text-xs uppercase tracking-widest text-cyan-400 font-bold">Modo Deportista</span>
-            <h2 className="text-xl font-bold text-white mt-1">Tu Rutina Asignada</h2>
-          </header>
-          {routines.length > 0 ? (
-            <div className="space-y-4">
-              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-700">
-                <h3 className="font-bold text-white text-lg">{routines[0].title}</h3>
-                <p className="text-xs text-slate-400 mt-1">{routines[0].coach_notes}</p>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* MODAL / VENTANA FLOTANTE PARA CREAR RUTINA */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <h3 className="text-lg font-bold text-white">Crear Nueva Rutina</h3>
+
+            <form onSubmit={handleSaveRoutine} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">TÍTULO DE LA RUTINA</label>
+                <input
+                  type="text"
+                  placeholder="Ej: Día 1: Pecho y Tríceps"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                />
               </div>
-            </div>
-          ) : (
-            <p className="text-center text-slate-400 py-6">No hay rutinas asignadas todavía.</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+
+              <div>
+                <label className="text-xs font-semibold text-slate-400 block mb-1">NOTAS DEL ENTRENADOR</
