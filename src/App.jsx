@@ -5,17 +5,27 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Lista de deportistas con sus claves asignadas (100% gratis)
+const ATHLETES_CREDENTIALS = [
+  { name: 'Fernando', code: 'FER123' },
+  { name: 'Lucas Silva', code: 'LUCAS456' }
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('trainer'); // 'trainer' | 'athlete'
   const [routines, setRoutines] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Estados para crear rutina
   const [title, setTitle] = useState('');
   const [notes, setNotes] = useState('');
-  const [assignedAthlete, setAssignedAthlete] = useState('Fernando'); // Atleta por defecto
+  const [assignedAthlete, setAssignedAthlete] = useState('Fernando');
   const [loading, setLoading] = useState(false);
 
-  // Lista de atletas disponibles
-  const athletesList = ['Fernando', 'Lucas Silva'];
+  // Estados para el acceso del deportista por clave
+  const [inputCode, setInputCode] = useState('');
+  const [loggedAthlete, setLoggedAthlete] = useState(null);
+  const [loginError, setLoginError] = useState('');
 
   const [exercises, setExercises] = useState([
     { name: '', setsReps: '', weight: '', rest: '' }
@@ -39,6 +49,21 @@ export default function App() {
     }
   };
 
+  // Validar clave del deportista
+  const handleLogin = (e) => {
+    e.preventDefault();
+    const athlete = ATHLETES_CREDENTIALS.find(
+      (a) => a.code.trim().toUpperCase() === inputCode.trim().toUpperCase()
+    );
+
+    if (athlete) {
+      setLoggedAthlete(athlete.name);
+      setLoginError('');
+    } else {
+      setLoginError('Clave incorrecta. Inténtalo de nuevo.');
+    }
+  };
+
   const addExerciseField = () => {
     setExercises([...exercises, { name: '', setsReps: '', weight: '', rest: '' }]);
   };
@@ -49,7 +74,6 @@ export default function App() {
     setExercises(updated);
   };
 
-  // Función para guardar rutina con el deportista asignado y botón de eliminar
   const handleSaveRoutine = async (e) => {
     e.preventDefault();
     if (!title.trim()) return alert('Por favor ingresa un título para la rutina');
@@ -60,7 +84,7 @@ export default function App() {
         {
           title,
           notes,
-          assigned_athlete: assignedAthlete, // Guarda a qué deportista pertenece
+          assigned_athlete: assignedAthlete,
           exercises,
         }
       ]);
@@ -80,7 +104,6 @@ export default function App() {
     }
   };
 
-  // Función para borrar rutina desde el panel
   const handleDeleteRoutine = async (id) => {
     if (!confirm('¿Estás seguro de borrar esta rutina?')) return;
     try {
@@ -94,7 +117,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 sm:p-8">
-      {/* Navbar Superior */}
+      {/* Header / Navbar */}
       <header className="max-w-4xl mx-auto flex justify-between items-center pb-6 border-b border-slate-800 mb-8">
         <div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
@@ -127,15 +150,15 @@ export default function App() {
         </div>
       </header>
 
-      {/* Contenido Principal */}
+      {/* Main Content */}
       <main className="max-w-4xl mx-auto">
         {activeTab === 'trainer' ? (
-          /* PANEL DEL ENTRENADOR */
+          /* PANEL ENTRENADOR */
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-slate-900 p-6 rounded-2xl border border-slate-800">
               <div>
                 <h2 className="text-xl font-bold">Panel del Entrenador</h2>
-                <p className="text-xs text-slate-400">Asigna rutinas y administra los atletas</p>
+                <p className="text-xs text-slate-400">Asigna rutinas y gestiona atletas</p>
               </div>
               <button
                 onClick={() => setIsModalOpen(true)}
@@ -145,7 +168,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Listado de Rutinas con opción de Borrar */}
             <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 space-y-4">
               <h3 className="text-sm font-semibold text-cyan-400 uppercase tracking-wider">
                 Rutinas Creadas ({routines.length})
@@ -167,7 +189,6 @@ export default function App() {
                         <button
                           onClick={() => handleDeleteRoutine(r.id)}
                           className="text-slate-500 hover:text-red-400 text-xs px-2 py-1 transition-colors"
-                          title="Eliminar rutina"
                         >
                           🗑️ Eliminar
                         </button>
@@ -194,50 +215,97 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* VISTA DEL DEPORTISTA (FILTRA SOLO SUS RUTINAS) */
+          /* VISTA DEPORTISTA CON CLAVE DE ACCESO */
           <div className="max-w-md mx-auto space-y-6">
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center">
-              <h2 className="text-lg font-bold text-cyan-400">Mi Plan de Hoy (Fernando)</h2>
-              <p className="text-xs text-slate-400">Rutinas asignadas exclusivamente para ti</p>
-            </div>
+            {!loggedAthlete ? (
+              /* PANTALLA DE INGRESO DE CLAVE */
+              <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center space-y-4 shadow-xl">
+                <div className="text-3xl">🔑</div>
+                <h2 className="text-lg font-bold text-cyan-400">Acceso Deportista</h2>
+                <p className="text-xs text-slate-400">Ingresa tu clave de acceso personal para ver tu rutina</p>
 
-            {routines
-              .filter((r) => !r.assigned_athlete || r.assigned_athlete === 'Fernando')
-              .map((r) => (
-                <div key={r.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+                <form onSubmit={handleLogin} className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Ej. FER123"
+                    value={inputCode}
+                    onChange={(e) => setInputCode(e.target.value)}
+                    className="w-full text-center tracking-widest font-mono text-lg uppercase bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                  />
+                  {loginError && <p className="text-xs text-red-400">{loginError}</p>}
+
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold rounded-xl text-xs transition-all shadow-lg shadow-cyan-500/20"
+                  >
+                    Ingresar a mi Rutina
+                  </button>
+                </form>
+              </div>
+            ) : (
+              /* RUTINA DESBLOQUEADA DEL ATLETA */
+              <div className="space-y-6">
+                <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
                   <div>
-                    <h3 className="text-lg font-bold text-white">{r.title}</h3>
-                    {r.notes && <p className="text-xs text-slate-400 mt-1">{r.notes}</p>}
+                    <h2 className="text-lg font-bold text-cyan-400">¡Hola, {loggedAthlete}!</h2>
+                    <p className="text-xs text-slate-400">Tu plan de hoy cargado con éxito</p>
                   </div>
-
-                  <div className="space-y-3">
-                    {r.exercises && r.exercises.map((ex, i) => (
-                      <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
-                        <div className="font-bold text-sm text-cyan-300 mb-2">{ex.name}</div>
-                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                          <div className="bg-slate-900 p-1.5 rounded-lg">
-                            <span className="block text-[10px] text-slate-500">SERIES/REPS</span>
-                            <span className="font-semibold text-slate-200">{ex.setsReps || '-'}</span>
-                          </div>
-                          <div className="bg-slate-900 p-1.5 rounded-lg">
-                            <span className="block text-[10px] text-slate-500">PESO</span>
-                            <span className="font-semibold text-slate-200">{ex.weight || '-'}</span>
-                          </div>
-                          <div className="bg-slate-900 p-1.5 rounded-lg">
-                            <span className="block text-[10px] text-slate-500">DESCANSO</span>
-                            <span className="font-semibold text-slate-200">{ex.rest || '-'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                  <button
+                    onClick={() => {
+                      setLoggedAthlete(null);
+                      setInputCode('');
+                    }}
+                    className="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg border border-slate-700 transition-colors"
+                  >
+                    Salir
+                  </button>
                 </div>
-              ))}
+
+                {routines
+                  .filter((r) => r.assigned_athlete === loggedAthlete)
+                  .map((r) => (
+                    <div key={r.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
+                      <div>
+                        <h3 className="text-lg font-bold text-white">{r.title}</h3>
+                        {r.notes && <p className="text-xs text-slate-400 mt-1">{r.notes}</p>}
+                      </div>
+
+                      <div className="space-y-3">
+                        {r.exercises && r.exercises.map((ex, i) => (
+                          <div key={i} className="p-3 bg-slate-950 rounded-xl border border-slate-800/80">
+                            <div className="font-bold text-sm text-cyan-300 mb-2">{ex.name}</div>
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                              <div className="bg-slate-900 p-1.5 rounded-lg">
+                                <span className="block text-[10px] text-slate-500">SERIES/REPS</span>
+                                <span className="font-semibold text-slate-200">{ex.setsReps || '-'}</span>
+                              </div>
+                              <div className="bg-slate-900 p-1.5 rounded-lg">
+                                <span className="block text-[10px] text-slate-500">PESO</span>
+                                <span className="font-semibold text-slate-200">{ex.weight || '-'}</span>
+                              </div>
+                              <div className="bg-slate-900 p-1.5 rounded-lg">
+                                <span className="block text-[10px] text-slate-500">DESCANSO</span>
+                                <span className="font-semibold text-slate-200">{ex.rest || '-'}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
+                {routines.filter((r) => r.assigned_athlete === loggedAthlete).length === 0 && (
+                  <div className="text-center py-8 text-slate-500 text-sm">
+                    Aún no tienes rutinas asignadas. ¡Pídele a tu entrenador que te agregue una!
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </main>
 
-      {/* MODAL PARA CREAR RUTINA CON ASIGNACIÓN */}
+      {/* MODAL CREAR RUTINA */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
@@ -251,9 +319,9 @@ export default function App() {
                   onChange={(e) => setAssignedAthlete(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
                 >
-                  {athletesList.map((athlete, idx) => (
-                    <option key={idx} value={athlete}>
-                      {athlete}
+                  {ATHLETES_CREDENTIALS.map((athlete, idx) => (
+                    <option key={idx} value={athlete.name}>
+                      {athlete.name} (Clave: {athlete.code})
                     </option>
                   ))}
                 </select>
