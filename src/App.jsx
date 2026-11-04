@@ -83,7 +83,7 @@ export default function App() {
       const { error } = await supabase.from('routines').insert([
         {
           title,
-          notes,
+          coach_notes: notes, // Ajustado para que coincida con la columna coach_notes de Supabase
           assigned_athlete: assignedAthlete,
           exercises,
         }
@@ -194,7 +194,7 @@ export default function App() {
                         </button>
                       </div>
 
-                      {r.notes && <p className="text-xs text-slate-400 italic">"{r.notes}"</p>}
+                      {r.coach_notes && <p className="text-xs text-slate-400 italic">"{r.coach_notes}"</p>}
 
                       {r.exercises && r.exercises.length > 0 && (
                         <div className="space-y-2 pt-2 border-t border-slate-800/80">
@@ -267,7 +267,7 @@ export default function App() {
                     <div key={r.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
                       <div>
                         <h3 className="text-lg font-bold text-white">{r.title}</h3>
-                        {r.notes && <p className="text-xs text-slate-400 mt-1">{r.notes}</p>}
+                        {r.coach_notes && <p className="text-xs text-slate-400 mt-1">{r.coach_notes}</p>}
                       </div>
 
                       <div className="space-y-3">
