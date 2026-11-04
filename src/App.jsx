@@ -5,10 +5,9 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Lista de deportistas con sus claves asignadas (100% gratis)
+// Lista limpia de deportistas
 const ATHLETES_CREDENTIALS = [
-  { name: 'Fernando', code: 'FER123' },
-  { name: 'Lucas Silva', code: 'LUCAS456' }
+  { name: 'Fernando', code: 'FER123' }
 ];
 
 export default function App() {
@@ -16,9 +15,8 @@ export default function App() {
   const [routines, setRoutines] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
-  // Estados para crear rutina
+  // Estados limpios sin columnas conflictivas
   const [title, setTitle] = useState('');
-  const [notes, setNotes] = useState('');
   const [assignedAthlete, setAssignedAthlete] = useState('Fernando');
   const [loading, setLoading] = useState(false);
 
@@ -49,7 +47,6 @@ export default function App() {
     }
   };
 
-  // Validar clave del deportista
   const handleLogin = (e) => {
     e.preventDefault();
     const athlete = ATHLETES_CREDENTIALS.find(
@@ -80,10 +77,10 @@ export default function App() {
 
     setLoading(true);
     try {
+      // Enviamos únicamente columnas que sabemos que existen y funcionan
       const { error } = await supabase.from('routines').insert([
         {
           title,
-          coach_notes: notes, // Ajustado para que coincida con la columna coach_notes de Supabase
           assigned_athlete: assignedAthlete,
           exercises,
         }
@@ -92,7 +89,6 @@ export default function App() {
       if (error) throw error;
 
       setTitle('');
-      setNotes('');
       setAssignedAthlete('Fernando');
       setExercises([{ name: '', setsReps: '', weight: '', rest: '' }]);
       setIsModalOpen(false);
@@ -117,7 +113,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans p-4 sm:p-8">
-      {/* Header / Navbar */}
       <header className="max-w-4xl mx-auto flex justify-between items-center pb-6 border-b border-slate-800 mb-8">
         <div>
           <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">
@@ -150,10 +145,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-4xl mx-auto">
         {activeTab === 'trainer' ? (
-          /* PANEL ENTRENADOR */
           <div className="space-y-6">
             <div className="flex justify-between items-center bg-slate-900 p-6 rounded-2xl border border-slate-800">
               <div>
@@ -194,8 +187,6 @@ export default function App() {
                         </button>
                       </div>
 
-                      {r.coach_notes && <p className="text-xs text-slate-400 italic">"{r.coach_notes}"</p>}
-
                       {r.exercises && r.exercises.length > 0 && (
                         <div className="space-y-2 pt-2 border-t border-slate-800/80">
                           {r.exercises.map((ex, i) => (
@@ -215,10 +206,8 @@ export default function App() {
             </div>
           </div>
         ) : (
-          /* VISTA DEPORTISTA CON CLAVE DE ACCESO */
           <div className="max-w-md mx-auto space-y-6">
             {!loggedAthlete ? (
-              /* PANTALLA DE INGRESO DE CLAVE */
               <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 text-center space-y-4 shadow-xl">
                 <div className="text-3xl">🔑</div>
                 <h2 className="text-lg font-bold text-cyan-400">Acceso Deportista</h2>
@@ -243,7 +232,6 @@ export default function App() {
                 </form>
               </div>
             ) : (
-              /* RUTINA DESBLOQUEADA DEL ATLETA */
               <div className="space-y-6">
                 <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
                   <div>
@@ -267,7 +255,6 @@ export default function App() {
                     <div key={r.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 space-y-4 shadow-xl">
                       <div>
                         <h3 className="text-lg font-bold text-white">{r.title}</h3>
-                        {r.coach_notes && <p className="text-xs text-slate-400 mt-1">{r.coach_notes}</p>}
                       </div>
 
                       <div className="space-y-3">
@@ -305,7 +292,6 @@ export default function App() {
         )}
       </main>
 
-      {/* MODAL CREAR RUTINA */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
@@ -334,17 +320,6 @@ export default function App() {
                   placeholder="Ej: Día 1: Pecho y Tríceps"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">NOTAS DEL ENTRENADOR</label>
-                <textarea
-                  placeholder="Ej: Enfócate en la fase excéntrica lenta."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows="2"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
                 />
               </div>
