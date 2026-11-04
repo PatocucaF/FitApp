@@ -228,4 +228,99 @@ export default function App() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-400 block mb-1">NOTAS DEL ENTRENADOR</
+                <label className="text-xs font-semibold text-slate-400 block mb-1">NOTAS DEL ENTRENADOR</label>
+                <textarea
+                  placeholder="Ej: Enfócate en la fase excéntrica lenta."
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows="2"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              {/* LISTA DINÁMICA DE EJERCICIOS */}
+              <div className="space-y-3">
+                <label className="text-xs font-semibold text-cyan-400 block uppercase tracking-wider">
+                  Ejercicios de la Rutina
+                </label>
+
+                <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                  {exercises.map((ex, index) => (
+                    <div key={index} className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2">
+                      <input
+                        type="text"
+                        placeholder="Nombre (ej. Press Banco)"
+                        value={ex.name}
+                        onChange={(e) => updateExercise(index, 'name', e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      />
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-500 block mb-0.5">Series x Reps</span>
+                          <input
+                            type="text"
+                            placeholder="4x10"
+                            value={ex.setsReps}
+                            onChange={(e) => updateExercise(index, 'setsReps', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block mb-0.5">Peso</span>
+                          <input
+                            type="text"
+                            placeholder="60 kg"
+                            value={ex.weight}
+                            onChange={(e) => updateExercise(index, 'weight', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-500 block mb-0.5">Descanso</span>
+                          <input
+                            type="text"
+                            placeholder="90 seg"
+                            value={ex.rest}
+                            onChange={(e) => updateExercise(index, 'rest', e.target.value)}
+                            className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-xs text-white"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={addExerciseField}
+                  className="w-full py-2 border border-dashed border-cyan-500/40 rounded-xl text-cyan-400 text-xs font-semibold hover:bg-cyan-500/10 transition-colors"
+                >
+                  + Agregar otro ejercicio
+                </button>
+              </div>
+
+              {/* Botones de Acción */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="flex-1 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-xs font-semibold text-slate-300 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/20 transition-all"
+                >
+                  {loading ? 'Guardando...' : 'Guardar en Supabase'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
