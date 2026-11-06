@@ -13,6 +13,7 @@ export default function App() {
   const [loginInput, setLoginInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Estados del Entrenador
   const [athletes, setAthletes] = useState([]);
@@ -55,25 +56,42 @@ export default function App() {
     if (!error) setRoutines(data || []);
   };
 
-  // Manejo de Login
-  const handleLogin = (e) => {
+  // Manejo de Login Asíncrono
+  const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
+    setLoading(true);
 
-    // Credenciales de Entrenador (Víctor)
-    if (loginInput.trim() === 'Victor' && passwordInput.trim() === 'Victor123') {
+    const userClean = loginInput.trim();
+    const passClean = passwordInput.trim();
+
+    // 1. Credenciales de Entrenador (Víctor)
+    if (userClean === 'Victor' && passClean === 'Victor123') {
       setUser({ role: 'trainer', name: 'Víctor' });
+      setLoading(false);
       return;
     }
 
-    // Validación para Deportista mediante su código único
-    const foundAthlete = athletes.find(a => a.code === passwordInput.trim() || a.code === loginInput.trim());
-    if (foundAthlete) {
-      setUser({ role: 'athlete', data: foundAthlete });
-      return;
+    // 2. Consulta directa a Supabase para verificar si el código de deportista existe
+    try {
+      const codeToSearch = passClean || userClean;
+      
+      const { data: foundAthletes, error } = await supabase
+        .from('athletes')
+        .select('*')
+        .or(`code.eq.${codeToSearch},name.ilike.%${userClean}%`);
+
+      if (!error && foundAthletes && foundAthletes.length > 0) {
+        setUser({ role: 'athlete', data: foundAthletes[0] });
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      console.error('Error al verificar credenciales:', err);
     }
 
-    setErrorMsg('Credenciales incorrectas. Verifique e intente de nuevo.');
+    setLoading(false);
+    setErrorMsg('Código o usuario incorrecto. Verifica tus datos de deportista.');
   };
 
   // Crear nuevo atleta (solo Entrenador)
@@ -144,7 +162,7 @@ export default function App() {
     setPasswordInput('');
   };
 
-  // --- VISTA: LOGIN (LIMPIA SIN PISTAS) ---
+  // --- VISTA: LOGIN ---
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
@@ -181,9 +199,10 @@ export default function App() {
             </div>
             <button
               type="submit"
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-3 rounded transition"
+              disabled={loading}
+              className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-slate-950 font-bold py-3 rounded transition"
             >
-              Iniciar Sesión
+              {loading ? 'Verificando...' : 'Iniciar Sesión'}
             </button>
           </form>
         </div>
@@ -261,7 +280,6 @@ export default function App() {
                     Asignar Rutina a: <span className="text-white">{selectedAthlete.name}</span>
                   </h2>
 
-                  {/* Selector de Días */}
                   <div className="flex flex-wrap gap-2 mb-4">
                     {DAYS.map((day) => (
                       <button
@@ -287,7 +305,6 @@ export default function App() {
                       onChange={(e) => setRoutineTitle(e.target.value)}
                     />
 
-                    {/* Tabla Dinámica de Ejercicios */}
                     <div className="space-y-2">
                       <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Ejercicios</label>
                       {exercises.map((ex, idx) => (
@@ -342,7 +359,6 @@ export default function App() {
                   </form>
                 </div>
 
-                {/* Listado de Rutinas Guardadas */}
                 <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                   <h3 className="text-md font-bold mb-4 text-slate-300">
                     Rutinas Guardadas de {selectedAthlete.name} ({selectedDay})
@@ -377,7 +393,7 @@ export default function App() {
     );
   }
 
-  // --- VISTA: DEPORTISTA ---
+  // --- VISTA: DEPORTISTA (FERNANDO) ---
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
       <header className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
@@ -390,7 +406,6 @@ export default function App() {
         </button>
       </header>
 
-      {/* Selector de Días */}
       <div className="flex overflow-x-auto gap-2 mb-6 pb-2">
         {DAYS.map((day) => (
           <button
@@ -407,7 +422,6 @@ export default function App() {
         ))}
       </div>
 
-      {/* Contenido de la Rutina del Día */}
       <div className="space-y-4 max-w-3xl">
         {routines
           .filter((r) => r.day_of_week === selectedDay)
