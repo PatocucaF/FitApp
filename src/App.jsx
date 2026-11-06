@@ -484,6 +484,7 @@ export default function App() {
                   </form>
                 </div>
 
+                {/* Rutinas Guardadas con Textos Grandes y Claros para el Entrenador */}
                 <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                   <h3 className="text-md font-bold mb-4 text-slate-300">
                     Progreso y Rutinas de {selectedAthlete.name} ({selectedDay})
@@ -498,42 +499,45 @@ export default function App() {
                         const completedIndices = progRecord?.completed_exercises || [];
 
                         return (
-                          <div key={r.id} className="bg-slate-900 border border-slate-800 p-4 rounded-lg">
-                            <div className="flex justify-between items-center mb-3">
+                          <div key={r.id} className="bg-slate-900 border border-slate-800 p-5 rounded-xl shadow-md">
+                            <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
                               <div>
-                                <h4 className="font-bold text-emerald-400 text-base">{r.title}</h4>
-                                <span className="text-xs text-slate-400">
+                                <h4 className="font-bold text-emerald-400 text-lg">{r.title}</h4>
+                                <span className="text-xs text-slate-400 font-medium">
                                   Progreso: {completedIndices.length}/{r.exercises?.length || 0} completados
                                 </span>
                               </div>
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => handleEditRoutine(r)}
-                                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 text-xs px-3 py-1.5 rounded transition"
+                                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 text-xs px-3 py-1.5 rounded transition font-semibold"
                                 >
                                   ✏️ Editar
                                 </button>
                                 <button
                                   onClick={() => handleDeleteRoutine(r.id)}
-                                  className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs px-3 py-1.5 rounded transition"
+                                  className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs px-3 py-1.5 rounded transition font-semibold"
                                 >
                                   🗑️ Eliminar
                                 </button>
                               </div>
                             </div>
 
-                            <div className="space-y-1">
+                            <div className="space-y-3">
                               {r.exercises?.map((ex, i) => {
                                 const isDone = completedIndices.includes(i);
                                 return (
-                                  <div key={i} className={`text-sm flex justify-between items-center border-b border-slate-800/50 py-1.5 px-2 rounded ${isDone ? 'bg-emerald-500/10 text-emerald-300' : 'text-slate-400'}`}>
-                                    <span className="flex items-center gap-2">
+                                  <div key={i} className={`p-3 rounded-lg flex flex-col sm:flex-row justify-between sm:items-center gap-2 border ${isDone ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200' : 'bg-slate-800/60 border-slate-700 text-slate-200'}`}>
+                                    <span className="font-bold text-base flex items-center gap-2.5">
                                       <span>{isDone ? '✅' : '⏳'}</span>
-                                      <span className={isDone ? 'line-through' : ''}>{ex.name}</span>
+                                      <span className={isDone ? 'line-through text-slate-400' : ''}>{ex.name}</span>
                                     </span>
-                                    <span className="text-xs">
-                                      {ex.sets}x{ex.reps} | {ex.weight} | ⏳ {ex.rest}
-                                    </span>
+                                    <div className="flex flex-wrap gap-2 text-sm font-semibold">
+                                      <span className="bg-slate-900 px-3 py-1 rounded border border-slate-700 text-slate-300">🏋️‍♂️ {ex.sets} Series</span>
+                                      <span className="bg-slate-900 px-3 py-1 rounded border border-slate-700 text-slate-300">🔄 {ex.reps} Reps</span>
+                                      <span className="bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded border border-emerald-500/40">⚖️ {ex.weight || 'Sin peso'}</span>
+                                      <span className="bg-blue-500/20 text-blue-300 px-3 py-1 rounded border border-blue-500/40">⏳ {ex.rest || '0s'} descanso</span>
+                                    </div>
                                   </div>
                                 );
                               })}
@@ -561,6 +565,7 @@ export default function App() {
     );
   }
 
+  // --- VISTA: DEPORTISTA CON TEXTOS GRANDES Y CÓMODOS PARA ENTRENAR ---
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
       <header className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
@@ -599,43 +604,43 @@ export default function App() {
               <div key={r.id} className="bg-slate-800 border border-slate-700 p-6 rounded-xl shadow-lg">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-xl font-bold text-emerald-400">{r.title}</h3>
-                  <span className="text-xs font-medium bg-slate-900 px-3 py-1 rounded-full border border-slate-700 text-slate-300">
+                  <span className="text-sm font-bold bg-slate-900 px-3.5 py-1.5 rounded-full border border-slate-700 text-emerald-400">
                     {completedIndices.length} de {r.exercises?.length || 0} completados
                   </span>
                 </div>
 
-                <p className="text-xs text-slate-400 mb-3">Toca la casilla de verificación en cada ejercicio a medida que los vayas realizando:</p>
+                <p className="text-xs text-slate-400 mb-4">Toca la casilla de verificación en cada ejercicio a medida que los vayas realizando:</p>
 
-                <div className="space-y-3">
+                <div className="space-y-3.5">
                   {r.exercises?.map((ex, i) => {
                     const isChecked = completedIndices.includes(i);
                     return (
                       <div 
                         key={i} 
                         onClick={() => toggleExerciseCheck(r.id, i)}
-                        className={`cursor-pointer p-4 rounded-xl border transition flex flex-col sm:flex-row justify-between sm:items-center gap-3 ${
+                        className={`cursor-pointer p-5 rounded-xl border transition flex flex-col md:flex-row justify-between md:items-center gap-4 ${
                           isChecked 
                             ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-200' 
                             : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-200'
                         }`}
                       >
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3.5">
                           <input
                             type="checkbox"
                             checked={isChecked}
                             onChange={() => {}}
-                            className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
+                            className="w-6 h-6 accent-emerald-500 rounded cursor-pointer"
                           />
-                          <span className={`font-semibold text-base ${isChecked ? 'line-through text-slate-400' : ''}`}>
+                          <span className={`font-bold text-lg ${isChecked ? 'line-through text-slate-400' : 'text-white'}`}>
                             {ex.name}
                           </span>
                         </div>
 
-                        <div className="flex flex-wrap gap-2 text-xs">
-                          <span className="bg-slate-800 px-2.5 py-1 rounded border border-slate-700 text-slate-300">{ex.sets} Series</span>
-                          <span className="bg-slate-800 px-2.5 py-1 rounded border border-slate-700 text-slate-300">{ex.reps} Reps</span>
-                          <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded border border-emerald-500/20 font-medium">{ex.weight}</span>
-                          <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded border border-blue-500/20 font-medium">⏳ {ex.rest}</span>
+                        <div className="flex flex-wrap gap-2.5 text-sm font-semibold">
+                          <span className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300">🏋️‍♂️ {ex.sets} Series</span>
+                          <span className="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-slate-300">🔄 {ex.reps} Reps</span>
+                          <span className="bg-emerald-500/20 text-emerald-300 px-3 py-1.5 rounded-lg border border-emerald-500/40">⚖️ {ex.weight || 'Sin peso'}</span>
+                          <span className="bg-blue-500/20 text-blue-300 px-3 py-1.5 rounded-lg border border-blue-500/40">⏳ {ex.rest || '0s'} descanso</span>
                         </div>
                       </div>
                     );
