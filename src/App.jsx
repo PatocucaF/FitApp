@@ -20,18 +20,22 @@ export default function App() {
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [newAthleteName, setNewAthleteName] = useState('');
   const [newAthleteCode, setNewAthleteCode] = useState('');
+  const [allProgress, setAllProgress] = useState([]); // Progreso de todos los atletas para Víctor
 
-  // Estados para Rutinas
+  // Estados para Rutinas y Progreso del Atleta
   const [routines, setRoutines] = useState([]);
   const [selectedDay, setSelectedDay] = useState('Lunes');
   const [routineTitle, setRoutineTitle] = useState('');
-  const [exercises, setExercises] = useState([{ name: '', sets: '', reps: '', weight: '' }]);
+  const [exercises, setExercises] = useState([{ name: '', sets: '', reps: '', weight: '', rest: '' }]);
+  const [athleteProgress, setAthleteProgress] = useState({}); // { routineId: [indicesDeEjerciciosHechos] }
 
   useEffect(() => {
     if (user?.role === 'trainer') {
       fetchAthletes();
+      fetchAllProgress();
     } else if (user?.role === 'athlete') {
       fetchAthleteRoutines(user.data.code);
+      fetchAthleteProgress(user.data.code);
     }
   }, [user]);
 
@@ -47,6 +51,12 @@ export default function App() {
     if (!error) setAthletes(data || []);
   };
 
+  // Cargar el progreso de todos los deportistas para el panel de Víctor
+  const fetchAllProgress = async () => {
+    const { data, error } = await supabase.from('routine_progress').select('*');
+    if (!error) setAllProgress(data || []);
+  };
+
   // Cargar rutinas según el código del atleta
   const fetchAthleteRoutines = async (code) => {
     const { data, error } = await supabase
@@ -54,6 +64,22 @@ export default function App() {
       .select('*')
       .eq('assigned_athlete', code);
     if (!error) setRoutines(data || []);
+  };
+
+  // Cargar el progreso guardado del atleta
+  const fetchAthleteProgress = async (code) => {
+    const { data, error } = await supabase
+      .from('routine_progress')
+      .select('*')
+      .eq('athlete_code', code);
+    
+    if (!error && data) {
+      const progressMap = {};
+      data.forEach(p => {
+        progressMap[p.routine_id] = p.completed_exercises || [];
+      });
+      setAthleteProgress(progressMap);
+    }
   };
 
   // Manejo de Login Asíncrono
@@ -114,7 +140,7 @@ export default function App() {
 
   // Agregar fila de ejercicio a la rutina
   const handleAddExerciseRow = () => {
-    setExercises([...exercises, { name: '', sets: '', reps: '', weight: '' }]);
+    setExercises([...exercises, { name: '', sets: '', reps: '', weight: '', rest: '' }]);
   };
 
   // Actualizar campo de un ejercicio dinámico
@@ -145,12 +171,40 @@ export default function App() {
 
     if (!error) {
       setRoutineTitle('');
-      setExercises([{ name: '', sets: '', reps: '', weight: '' }]);
+      setExercises([{ name: '', sets: '', reps: '', weight: '', rest: '' }]);
       fetchAthleteRoutines(athleteCode);
       alert('Rutina guardada con éxito.');
     } else {
       alert('Error al guardar rutina: ' + error.message);
     }
+  };
+
+  // Marcar/Desmarcar ejercicio hecho por el deportista (Check-in interactivo)
+  const toggleExerciseCheck = async (routineId, exerciseIndex) => {
+    const currentCompleted = athleteProgress[routineId] || [];
+    let updatedCompleted;
+
+    if (currentCompleted.includes(exerciseIndex)) {
+      updatedCompleted = currentCompleted.filter(i => i !== exerciseIndex);
+    } else {
+      updatedCompleted = [...currentCompleted, exerciseIndex];
+    }
+
+    setAthleteProgress({
+      ...athleteProgress,
+      [routineId]: updatedCompleted
+    });
+
+    // Guardar o actualizar en Supabase
+    await supabase.from('routine_progress').upsert([
+      {
+        routine_id: routineId,
+        athlete_code: user.data.code,
+        day_of_week: selectedDay,
+        completed_exercises: updatedCompleted,
+        updated_at: new Date()
+      }
+    ], { onConflict: ['routine_id', 'athlete_code'] });
   };
 
   // Cerrar sesión
@@ -210,7 +264,7 @@ export default function App() {
     );
   }
 
-  // --- VISTA: ENTRENADOR (VÍCTOR) ---
+  // --- VISTA: ENTRENADOR (VÍCTOR) CON SEGUIMIENTO DE PROGRESO ---
   if (user.role === 'trainer') {
     return (
       <div className="min-h-screen bg-slate-900 text-white p-6">
@@ -271,7 +325,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Columna 2 y 3: Planificador y Rutinas */}
+          {/* Columna 2 y 3: Planificador y Monitoreo de Check-in */}
           <div className="lg:col-span-2 space-y-6">
             {selectedAthlete ? (
               <>
@@ -306,13 +360,20 @@ export default function App() {
                     />
 
                     <div className="space-y-2">
-                      <label className="text-xs text-slate-400 font-bold uppercase tracking-wider">Ejercicios</label>
+                      <div className="grid grid-cols-12 gap-2 text-xs text-slate-400 font-bold uppercase tracking-wider px-1">
+                        <span className="col-span-4">Ejercicio</span>
+                        <span className="col-span-2 text-center">Series</span>
+                        <span className="col-span-2 text-center">Reps</span>
+                        <span className="col-span-2 text-center">Peso</span>
+                        <span className="col-span-2 text-center">Descanso</span>
+                      </div>
+
                       {exercises.map((ex, idx) => (
                         <div key={idx} className="grid grid-cols-12 gap-2">
                           <input
                             type="text"
                             placeholder="Ejercicio"
-                            className="col-span-5 bg-slate-900 border border-slate-700 rounded p-2 text-sm"
+                            className="col-span-4 bg-slate-900 border border-slate-700 rounded p-2 text-sm"
                             value={ex.name}
                             onChange={(e) => handleExerciseChange(idx, 'name', e.target.value)}
                           />
@@ -333,9 +394,16 @@ export default function App() {
                           <input
                             type="text"
                             placeholder="Peso"
-                            className="col-span-3 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-center"
+                            className="col-span-2 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-center"
                             value={ex.weight}
                             onChange={(e) => handleExerciseChange(idx, 'weight', e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            placeholder="Descanso"
+                            className="col-span-2 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-center"
+                            value={ex.rest}
+                            onChange={(e) => handleExerciseChange(idx, 'rest', e.target.value)}
                           />
                         </div>
                       ))}
@@ -359,32 +427,54 @@ export default function App() {
                   </form>
                 </div>
 
+                {/* Rutinas Guardadas y Monitoreo de Progreso en Vivo */}
                 <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                   <h3 className="text-md font-bold mb-4 text-slate-300">
-                    Rutinas Guardadas de {selectedAthlete.name} ({selectedDay})
+                    Progreso y Rutinas de {selectedAthlete.name} ({selectedDay})
                   </h3>
                   <div className="space-y-4">
                     {routines
                       .filter((r) => r.day_of_week === selectedDay)
-                      .map((r) => (
-                        <div key={r.id} className="bg-slate-900 border border-slate-800 p-4 rounded-lg">
-                          <h4 className="font-bold text-emerald-400 mb-2">{r.title}</h4>
-                          <div className="space-y-1">
-                            {r.exercises?.map((ex, i) => (
-                              <div key={i} className="text-sm flex justify-between border-b border-slate-800/50 py-1 text-slate-300">
-                                <span>{ex.name}</span>
-                                <span className="text-slate-400">{ex.sets} series x {ex.reps} reps @ {ex.weight}</span>
-                              </div>
-                            ))}
+                      .map((r) => {
+                        // Buscar el progreso de este atleta para esta rutina
+                        const progRecord = allProgress.find(
+                          p => p.routine_id === r.id && p.athlete_code === selectedAthlete.code
+                        );
+                        const completedIndices = progRecord?.completed_exercises || [];
+
+                        return (
+                          <div key={r.id} className="bg-slate-900 border border-slate-800 p-4 rounded-lg">
+                            <div className="flex justify-between items-center mb-2">
+                              <h4 className="font-bold text-emerald-400">{r.title}</h4>
+                              <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 border border-slate-700">
+                                Estado: {completedIndices.length}/{r.exercises?.length || 0} completados
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              {r.exercises?.map((ex, i) => {
+                                const isDone = completedIndices.includes(i);
+                                return (
+                                  <div key={i} className={`text-sm flex justify-between items-center border-b border-slate-800/50 py-1.5 px-2 rounded ${isDone ? 'bg-emerald-500/10 text-emerald-300' : 'text-slate-400'}`}>
+                                    <span className="flex items-center gap-2">
+                                      <span>{isDone ? '✅' : '⏳'}</span>
+                                      <span className={isDone ? 'line-through' : ''}>{ex.name}</span>
+                                    </span>
+                                    <span className="text-xs">
+                                      {ex.sets}x{ex.reps} | {ex.weight} | ⏳ {ex.rest}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </div>
               </>
             ) : (
               <div className="bg-slate-800/50 border border-slate-800 p-12 rounded-xl text-center text-slate-500">
-                Selecciona un deportista de la lista para gestionar sus rutinas.
+                Selecciona un deportista de la lista para gestionar sus rutinas y ver su progreso.
               </div>
             )}
           </div>
@@ -393,7 +483,7 @@ export default function App() {
     );
   }
 
-  // --- VISTA: DEPORTISTA (FERNANDO) ---
+  // --- VISTA: DEPORTISTA CON CHECK-IN INTERACTIVO ---
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
       <header className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
@@ -425,23 +515,58 @@ export default function App() {
       <div className="space-y-4 max-w-3xl">
         {routines
           .filter((r) => r.day_of_week === selectedDay)
-          .map((r) => (
-            <div key={r.id} className="bg-slate-800 border border-slate-700 p-6 rounded-xl shadow-lg">
-              <h3 className="text-xl font-bold text-emerald-400 mb-4">{r.title}</h3>
-              <div className="space-y-3">
-                {r.exercises?.map((ex, i) => (
-                  <div key={i} className="bg-slate-900 p-3 rounded flex justify-between items-center border border-slate-800">
-                    <span className="font-semibold text-slate-200">{ex.name}</span>
-                    <div className="text-sm space-x-3 text-slate-400">
-                      <span className="bg-slate-800 px-2 py-1 rounded border border-slate-700">{ex.sets} Series</span>
-                      <span className="bg-slate-800 px-2 py-1 rounded border border-slate-700">{ex.reps} Reps</span>
-                      <span className="bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded border border-emerald-500/20">{ex.weight}</span>
-                    </div>
-                  </div>
-                ))}
+          .map((r) => {
+            const completedIndices = athleteProgress[r.id] || [];
+
+            return (
+              <div key={r.id} className="bg-slate-800 border border-slate-700 p-6 rounded-xl shadow-lg">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-bold text-emerald-400">{r.title}</h3>
+                  <span className="text-xs font-medium bg-slate-900 px-3 py-1 rounded-full border border-slate-700 text-slate-300">
+                    {completedIndices.length} de {r.exercises?.length || 0} completados
+                  </span>
+                </div>
+
+                <p className="text-xs text-slate-400 mb-3">Toca la casilla de verificación en cada ejercicio a medida que los vayas realizando:</p>
+
+                <div className="space-y-3">
+                  {r.exercises?.map((ex, i) => {
+                    const isChecked = completedIndices.includes(i);
+                    return (
+                      <div 
+                        key={i} 
+                        onClick={() => toggleExerciseCheck(r.id, i)}
+                        className={`cursor-pointer p-4 rounded-xl border transition flex flex-col sm:flex-row justify-between sm:items-center gap-3 ${
+                          isChecked 
+                            ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-200' 
+                            : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}} // Manejado por el div contenedor
+                            className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
+                          />
+                          <span className={`font-semibold text-base ${isChecked ? 'line-through text-slate-400' : ''}`}>
+                            {ex.name}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 text-xs">
+                          <span className="bg-slate-800 px-2.5 py-1 rounded border border-slate-700 text-slate-300">{ex.sets} Series</span>
+                          <span className="bg-slate-800 px-2.5 py-1 rounded border border-slate-700 text-slate-300">{ex.reps} Reps</span>
+                          <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded border border-emerald-500/20 font-medium">{ex.weight}</span>
+                          <span className="bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded border border-blue-500/20 font-medium">⏳ {ex.rest}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
         {routines.filter((r) => r.day_of_week === selectedDay).length === 0 && (
           <div className="bg-slate-800/40 border border-slate-800 p-12 rounded-xl text-center text-slate-500">
