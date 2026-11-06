@@ -20,14 +20,15 @@ export default function App() {
   const [selectedAthlete, setSelectedAthlete] = useState(null);
   const [newAthleteName, setNewAthleteName] = useState('');
   const [newAthleteCode, setNewAthleteCode] = useState('');
-  const [allProgress, setAllProgress] = useState([]); // Progreso de todos los atletas para Víctor
+  const [allProgress, setAllProgress] = useState([]);
 
-  // Estados para Rutinas y Progreso del Atleta
+  // Estados para Rutinas y Edición
   const [routines, setRoutines] = useState([]);
   const [selectedDay, setSelectedDay] = useState('Lunes');
   const [routineTitle, setRoutineTitle] = useState('');
   const [exercises, setExercises] = useState([{ name: '', sets: '', reps: '', weight: '', rest: '' }]);
-  const [athleteProgress, setAthleteProgress] = useState({}); // { routineId: [indicesDeEjerciciosHechos] }
+  const [editingRoutineId, setEditingRoutineId] = useState(null);
+  const [athleteProgress, setAthleteProgress] = useState({});
 
   useEffect(() => {
     if (user?.role === 'trainer') {
@@ -42,22 +43,20 @@ export default function App() {
   useEffect(() => {
     if (selectedAthlete) {
       fetchAthleteRoutines(selectedAthlete.code);
+      resetForm();
     }
   }, [selectedAthlete]);
 
-  // Cargar lista de deportistas (solo Entrenador)
   const fetchAthletes = async () => {
     const { data, error } = await supabase.from('athletes').select('*');
     if (!error) setAthletes(data || []);
   };
 
-  // Cargar el progreso de todos los deportistas para el panel de Víctor
   const fetchAllProgress = async () => {
     const { data, error } = await supabase.from('routine_progress').select('*');
     if (!error) setAllProgress(data || []);
   };
 
-  // Cargar rutinas según el código del atleta
   const fetchAthleteRoutines = async (code) => {
     const { data, error } = await supabase
       .from('routines')
@@ -66,7 +65,6 @@ export default function App() {
     if (!error) setRoutines(data || []);
   };
 
-  // Cargar el progreso guardado del atleta
   const fetchAthleteProgress = async (code) => {
     const { data, error } = await supabase
       .from('routine_progress')
@@ -82,7 +80,6 @@ export default function App() {
     }
   };
 
-  // Manejo de Login Asíncrono
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -91,17 +88,14 @@ export default function App() {
     const userClean = loginInput.trim();
     const passClean = passwordInput.trim();
 
-    // 1. Credenciales de Entrenador (Víctor)
     if (userClean === 'Victor' && passClean === 'Victor123') {
       setUser({ role: 'trainer', name: 'Víctor' });
       setLoading(false);
       return;
     }
 
-    // 2. Consulta directa a Supabase para verificar si el código de deportista existe
     try {
       const codeToSearch = passClean || userClean;
-      
       const { data: foundAthletes, error } = await supabase
         .from('athletes')
         .select('*')
@@ -120,7 +114,6 @@ export default function App() {
     setErrorMsg('Código o usuario incorrecto. Verifica tus datos de deportista.');
   };
 
-  // Crear nuevo atleta (solo Entrenador)
   const handleCreateAthlete = async (e) => {
     e.preventDefault();
     if (!newAthleteName || !newAthleteCode) return;
@@ -138,19 +131,27 @@ export default function App() {
     }
   };
 
-  // Agregar fila de ejercicio a la rutina
   const handleAddExerciseRow = () => {
     setExercises([...exercises, { name: '', sets: '', reps: '', weight: '', rest: '' }]);
   };
 
-  // Actualizar campo de un ejercicio dinámico
+  const handleRemoveExerciseRow = (index) => {
+    if (exercises.length === 1) return;
+    setExercises(exercises.filter((_, i) => i !== index));
+  };
+
   const handleExerciseChange = (index, field, value) => {
     const updated = [...exercises];
     updated[index][field] = value;
     setExercises(updated);
   };
 
-  // Guardar/Actualizar Rutina
+  const resetForm = () => {
+    setRoutineTitle('');
+    setExercises([{ name: '', sets: '', reps: '', weight: '', rest: '' }]);
+    setEditingRoutineId(null);
+  };
+
   const handleSaveRoutine = async (e) => {
     e.preventDefault();
     const athleteCode = user.role === 'trainer' ? selectedAthlete?.code : user.data.code;
@@ -160,26 +161,70 @@ export default function App() {
       return;
     }
 
-    const { error } = await supabase.from('routines').insert([
-      {
-        title: routineTitle,
-        assigned_athlete: athleteCode,
-        day_of_week: selectedDay,
-        exercises: exercises
-      }
-    ]);
+    if (!routineTitle.trim()) {
+      alert('Por favor ingresa un título para la rutina.');
+      return;
+    }
 
-    if (!error) {
-      setRoutineTitle('');
-      setExercises([{ name: '', sets: '', reps: '', weight: '', rest: '' }]);
-      fetchAthleteRoutines(athleteCode);
-      alert('Rutina guardada con éxito.');
+    if (editingRoutineId) {
+      const { error } = await supabase
+        .from('routines')
+        .update({
+          title: routineTitle,
+          day_of_week: selectedDay,
+          exercises: exercises
+        })
+        .eq('id', editingRoutineId);
+
+      if (!error) {
+        resetForm();
+        fetchAthleteRoutines(athleteCode);
+        alert('Rutina actualizada con éxito.');
+      } else {
+        alert('Error al actualizar rutina: ' + error.message);
+      }
     } else {
-      alert('Error al guardar rutina: ' + error.message);
+      const { error } = await supabase.from('routines').insert([
+        {
+          title: routineTitle,
+          assigned_athlete: athleteCode,
+          day_of_week: selectedDay,
+          exercises: exercises
+        }
+      ]);
+
+      if (!error) {
+        resetForm();
+        fetchAthleteRoutines(athleteCode);
+        alert('Rutina guardada con éxito.');
+      } else {
+        alert('Error al guardar rutina: ' + error.message);
+      }
     }
   };
 
-  // Marcar/Desmarcar ejercicio hecho por el deportista (Check-in interactivo)
+  const handleEditRoutine = (routine) => {
+    setEditingRoutineId(routine.id);
+    setRoutineTitle(routine.title);
+    setSelectedDay(routine.day_of_week);
+    setExercises(routine.exercises || [{ name: '', sets: '', reps: '', weight: '', rest: '' }]);
+  };
+
+  const handleDeleteRoutine = async (routineId) => {
+    if (!window.confirm('¿Estás seguro de que deseas eliminar esta rutina?')) return;
+
+    const { error } = await supabase.from('routines').delete().eq('id', routineId);
+
+    if (!error) {
+      if (selectedAthlete) fetchAthleteRoutines(selectedAthlete.code);
+      fetchAllProgress();
+      if (editingRoutineId === routineId) resetForm();
+      alert('Rutina eliminada correctamente.');
+    } else {
+      alert('Error al eliminar rutina: ' + error.message);
+    }
+  };
+
   const toggleExerciseCheck = async (routineId, exerciseIndex) => {
     const currentCompleted = athleteProgress[routineId] || [];
     let updatedCompleted;
@@ -195,7 +240,6 @@ export default function App() {
       [routineId]: updatedCompleted
     });
 
-    // Guardar o actualizar en Supabase
     await supabase.from('routine_progress').upsert([
       {
         routine_id: routineId,
@@ -207,7 +251,6 @@ export default function App() {
     ], { onConflict: ['routine_id', 'athlete_code'] });
   };
 
-  // Cerrar sesión
   const handleLogout = () => {
     setUser(null);
     setSelectedAthlete(null);
@@ -216,7 +259,6 @@ export default function App() {
     setPasswordInput('');
   };
 
-  // --- VISTA: LOGIN ---
   if (!user) {
     return (
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
@@ -264,7 +306,6 @@ export default function App() {
     );
   }
 
-  // --- VISTA: ENTRENADOR (VÍCTOR) CON SEGUIMIENTO DE PROGRESO ---
   if (user.role === 'trainer') {
     return (
       <div className="min-h-screen bg-slate-900 text-white p-6">
@@ -279,7 +320,6 @@ export default function App() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Columna 1: Registro y Selección de Atletas */}
           <div className="space-y-6">
             <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
               <h2 className="text-lg font-bold mb-4 text-emerald-400">Registrar Nuevo Deportista</h2>
@@ -325,14 +365,20 @@ export default function App() {
             </div>
           </div>
 
-          {/* Columna 2 y 3: Planificador y Monitoreo de Check-in */}
           <div className="lg:col-span-2 space-y-6">
             {selectedAthlete ? (
               <>
                 <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                  <h2 className="text-lg font-bold mb-4 text-emerald-400">
-                    Asignar Rutina a: <span className="text-white">{selectedAthlete.name}</span>
-                  </h2>
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-bold text-emerald-400">
+                      {editingRoutineId ? '📝 Editando Rutina' : '➕ Asignar Rutina a:'} <span className="text-white">{selectedAthlete.name}</span>
+                    </h2>
+                    {editingRoutineId && (
+                      <button onClick={resetForm} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-slate-300">
+                        Cancelar Edición
+                      </button>
+                    )}
+                  </div>
 
                   <div className="flex flex-wrap gap-2 mb-4">
                     {DAYS.map((day) => (
@@ -369,7 +415,7 @@ export default function App() {
                       </div>
 
                       {exercises.map((ex, idx) => (
-                        <div key={idx} className="grid grid-cols-12 gap-2">
+                        <div key={idx} className="grid grid-cols-12 gap-2 items-center">
                           <input
                             type="text"
                             placeholder="Ejercicio"
@@ -398,13 +444,24 @@ export default function App() {
                             value={ex.weight}
                             onChange={(e) => handleExerciseChange(idx, 'weight', e.target.value)}
                           />
-                          <input
-                            type="text"
-                            placeholder="Descanso"
-                            className="col-span-2 bg-slate-900 border border-slate-700 rounded p-2 text-sm text-center"
-                            value={ex.rest}
-                            onChange={(e) => handleExerciseChange(idx, 'rest', e.target.value)}
-                          />
+                          <div className="col-span-2 flex items-center gap-1">
+                            <input
+                              type="text"
+                              placeholder="Descanso"
+                              className="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-center"
+                              value={ex.rest}
+                              onChange={(e) => handleExerciseChange(idx, 'rest', e.target.value)}
+                            />
+                            {exercises.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveExerciseRow(idx)}
+                                className="text-red-400 hover:text-red-300 px-1 font-bold"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -419,15 +476,14 @@ export default function App() {
                       </button>
                       <button
                         type="submit"
-                        className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-2 rounded text-sm"
+                        className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold py-2 rounded text-sm transition"
                       >
-                        Guardar Rutina para {selectedDay}
+                        {editingRoutineId ? 'Actualizar Rutina' : `Guardar Rutina para ${selectedDay}`}
                       </button>
                     </div>
                   </form>
                 </div>
 
-                {/* Rutinas Guardadas y Monitoreo de Progreso en Vivo */}
                 <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
                   <h3 className="text-md font-bold mb-4 text-slate-300">
                     Progreso y Rutinas de {selectedAthlete.name} ({selectedDay})
@@ -436,7 +492,6 @@ export default function App() {
                     {routines
                       .filter((r) => r.day_of_week === selectedDay)
                       .map((r) => {
-                        // Buscar el progreso de este atleta para esta rutina
                         const progRecord = allProgress.find(
                           p => p.routine_id === r.id && p.athlete_code === selectedAthlete.code
                         );
@@ -444,12 +499,29 @@ export default function App() {
 
                         return (
                           <div key={r.id} className="bg-slate-900 border border-slate-800 p-4 rounded-lg">
-                            <div className="flex justify-between items-center mb-2">
-                              <h4 className="font-bold text-emerald-400">{r.title}</h4>
-                              <span className="text-xs bg-slate-800 px-2 py-1 rounded text-slate-300 border border-slate-700">
-                                Estado: {completedIndices.length}/{r.exercises?.length || 0} completados
-                              </span>
+                            <div className="flex justify-between items-center mb-3">
+                              <div>
+                                <h4 className="font-bold text-emerald-400 text-base">{r.title}</h4>
+                                <span className="text-xs text-slate-400">
+                                  Progreso: {completedIndices.length}/{r.exercises?.length || 0} completados
+                                </span>
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleEditRoutine(r)}
+                                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-400 text-xs px-3 py-1.5 rounded transition"
+                                >
+                                  ✏️ Editar
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteRoutine(r.id)}
+                                  className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs px-3 py-1.5 rounded transition"
+                                >
+                                  🗑️ Eliminar
+                                </button>
+                              </div>
                             </div>
+
                             <div className="space-y-1">
                               {r.exercises?.map((ex, i) => {
                                 const isDone = completedIndices.includes(i);
@@ -469,6 +541,12 @@ export default function App() {
                           </div>
                         );
                       })}
+
+                    {routines.filter((r) => r.day_of_week === selectedDay).length === 0 && (
+                      <div className="text-center text-slate-500 py-6">
+                        No hay rutinas creadas para el día {selectedDay}.
+                      </div>
+                    )}
                   </div>
                 </div>
               </>
@@ -483,7 +561,6 @@ export default function App() {
     );
   }
 
-  // --- VISTA: DEPORTISTA CON CHECK-IN INTERACTIVO ---
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
       <header className="flex justify-between items-center mb-8 border-b border-slate-800 pb-4">
@@ -546,7 +623,7 @@ export default function App() {
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() => {}} // Manejado por el div contenedor
+                            onChange={() => {}}
                             className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
                           />
                           <span className={`font-semibold text-base ${isChecked ? 'line-through text-slate-400' : ''}`}>
